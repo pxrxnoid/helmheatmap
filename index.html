@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
+<title>Heatmap Studio</title>
+<link href="https://fonts.googleapis.com/css2?family=Fragment+Mono&family=Geist:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;-webkit-font-smoothing:antialiased;background:#000}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#353535}
+button{cursor:pointer;font-family:inherit;border:none;outline:none;background:none;color:inherit}
+
+#app{display:flex;height:100vh;color:#eee}
+
+/* Sidebar */
+#sidebar{width:380px;min-width:380px;background:#020202;border-right:1px solid #353535;display:flex;flex-direction:column;overflow:hidden}
+.sb-inner{display:flex;flex-direction:column;height:100%;padding:15px}
+.sb-header{display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.helm-icon{width:29px;height:25px;object-fit:contain}
+.sb-body{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:48px;margin-top:48px;padding-bottom:4px}
+.sb-footer{flex-shrink:0;margin-top:12px}
+
+/* Buttons */
+.btn-glass{display:flex;align-items:center;justify-content:center;gap:8px;padding:8px 14px;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.2);
+  backdrop-filter:blur(5px);box-shadow:inset 0 0 15px rgba(255,255,255,.1);
+  font-family:'Fragment Mono',monospace;font-size:14px;letter-spacing:-.7px;
+  text-transform:uppercase;color:rgba(255,255,255,.6);white-space:nowrap;transition:color .15s}
+.btn-glass:hover{color:#fff}
+.btn-glass.full{width:100%}
+.btn-glass svg{width:16px;height:16px;flex-shrink:0;stroke:currentColor}
+
+/* Section */
+.section-lbl{font-family:'Fragment Mono',monospace;font-size:12px;letter-spacing:-.6px;
+  text-transform:uppercase;color:rgba(255,255,255,.5);margin-bottom:12px}
+.section-items{display:flex;flex-direction:column;gap:14px}
+
+/* Setting row */
+.setting-row{display:flex;align-items:center;justify-content:space-between;
+  padding:8px 8px 8px 14px;border:1px solid #353535}
+.setting-name{font-family:'Geist',sans-serif;font-size:12px;font-weight:400;
+  letter-spacing:-.12px;color:#eee}
+
+/* Toggle — active accent is #D1000C */
+.toggle-wrap{border:1px solid #353535;padding:1px;cursor:pointer;flex-shrink:0;transition:border-color .15s}
+.toggle-wrap.on{border-color:#D1000C}
+.toggle-track{display:flex;align-items:center;padding:2px;width:36px}
+.toggle-track.on{justify-content:flex-end}
+.toggle-thumb{width:16px;height:16px;flex-shrink:0;box-shadow:0 1.3px 3.9px rgba(0,0,0,.3)}
+.toggle-thumb.on{background:#D1000C}
+.toggle-thumb.off{background:rgba(255,255,255,.3)}
+
+/* Range slider */
+.slider-row{display:flex;align-items:center;gap:9px}
+.slider-lbl{font-family:'Fragment Mono',monospace;font-size:12px;letter-spacing:-.6px;
+  color:rgba(255,255,255,.5);white-space:nowrap;flex-shrink:0}
+.slider-val{font-family:'Fragment Mono',monospace;font-size:12px;letter-spacing:-.6px;
+  color:rgba(255,255,255,.5);text-align:right;white-space:nowrap;flex-shrink:0;min-width:32px}
+.range-wrap{flex:1;position:relative;height:3px;background:#2a2a2a}
+.range-fill{position:absolute;left:0;top:0;height:3px;background:#fff;pointer-events:none}
+.range-dot{position:absolute;top:50%;width:7px;height:7px;background:#fff;
+  transform:translate(-50%,-50%);pointer-events:none}
+.range-native{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;margin:0;padding:0}
+
+
+/* Source items */
+.source-item{display:flex;align-items:center;gap:10px;padding:9px 15px 9px 9px;
+  background:rgba(255,255,255,.05);border:1px solid #353535;cursor:pointer;transition:all .15s}
+.source-item:hover{background:rgba(255,255,255,.08)}
+.source-item.selected{border-color:#D1000C}
+.source-dot{width:8px;height:8px;flex-shrink:0}
+.source-name{flex:1;font-family:'Geist',sans-serif;font-size:12px;font-weight:400;
+  letter-spacing:-.12px;color:#eee;white-space:nowrap}
+.source-val{font-family:'Fragment Mono',monospace;font-size:12px;letter-spacing:-.6px;
+  color:rgba(255,255,255,.5);text-align:right}
+
+/* Main */
+#main{flex:1;min-width:0;height:100%;background:#000;position:relative}
+#tabs-bar{position:absolute;top:16px;left:50%;transform:translateX(-50%);z-index:5;
+  display:flex;align-items:center;justify-content:center;gap:8px}
+/* Tabs — inactive matches btn-glass, active gets D1000C border */
+.tab-btn{display:flex;align-items:center;justify-content:center;padding:8px 14px;
+  border:1px solid rgba(255,255,255,.2);
+  background:rgba(255,255,255,.05);
+  backdrop-filter:blur(5px);
+  box-shadow:inset 0 0 15px rgba(255,255,255,.1);
+  font-family:'Fragment Mono',monospace;font-size:14px;letter-spacing:-.7px;
+  text-transform:uppercase;color:rgba(255,255,255,.6);transition:all .15s}
+.tab-btn.active{border-color:#D1000C;color:#fff}
+.tab-btn:hover{color:#fff}
+
+/* Sub-mode toggle inside sidebar */
+.sub-toggle{display:flex;gap:4px}
+.sub-toggle button{flex:1;padding:8px 6px;
+  border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.05);
+  backdrop-filter:blur(5px);box-shadow:inset 0 0 15px rgba(255,255,255,.1);
+  font-family:'Fragment Mono',monospace;font-size:14px;letter-spacing:-.7px;
+  text-transform:uppercase;color:rgba(255,255,255,.6);transition:all .15s}
+.sub-toggle button.active{border-color:#D1000C;color:#fff}
+.sub-toggle button:hover{color:#fff}
+
+/* Viewport */
+#viewport{position:absolute;inset:0;overflow:hidden;background:#000}
+#main-canvas{display:block;position:absolute;inset:0;width:100%;height:100%}
+
+/* Legend */
+#legend{position:absolute;right:16px;bottom:16px;
+  display:flex;flex-direction:column;gap:5px;align-items:center;width:27px;user-select:none}
+#legend .lbl{font-family:'Fragment Mono',monospace;font-size:10.5px;
+  letter-spacing:-.53px;color:rgba(255,255,255,.35)}
+.legend-bar{position:relative;width:18px;height:330px;flex-shrink:0}
+.legend-bar canvas{display:block;width:18px;height:330px;box-shadow:0 0 0 1.3px rgba(255,255,255,.1)}
+.legend-dim{position:absolute;left:0;width:100%;background:rgba(0,0,0,.72);pointer-events:none;z-index:2}
+.legend-handle{position:absolute;left:-5px;right:-5px;height:2px;background:#fff;
+  cursor:ns-resize;z-index:3;transform:translateY(-50%)}
+.legend-handle::before{content:'';position:absolute;left:0;right:0;top:-5px;bottom:-5px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{animation:spin .7s linear infinite;transform-origin:center}
+
+/* Canvas hint */
+.canvas-hint{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);
+  padding:6px 16px;background:rgba(0,0,0,.6);backdrop-filter:blur(8px);
+  font-family:'Fragment Mono',monospace;font-size:11px;color:rgba(255,255,255,.5);
+  pointer-events:none;white-space:nowrap}
+
+/* Popover */
+#point-popover{position:absolute;background:#111;border:1px solid #353535;
+  padding:12px;width:200px;box-shadow:0 8px 32px rgba(0,0,0,.5);
+  display:none;z-index:10}
+#point-popover .pp-title{font-family:'Fragment Mono',monospace;font-size:11px;
+  letter-spacing:-.5px;color:rgba(255,255,255,.5);text-transform:uppercase;
+  margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+#point-popover .pp-del{width:20px;height:20px;background:rgba(220,50,50,.15);
+  color:#e55;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer}
+#point-popover .pp-del:hover{background:rgba(220,50,50,.3)}
+.pp-row{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.pp-lbl{font-family:'Fragment Mono',monospace;font-size:10px;letter-spacing:-.5px;
+  color:rgba(255,255,255,.5);min-width:38px}
+
+/* Thermal upload */
+.upload-zone{border:1px dashed #353535;height:110px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;text-align:center;
+  cursor:pointer;position:relative;transition:border-color .2s}
+.upload-zone:hover{border-color:#D1000C}
+.upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.upload-zone .uz-icon{font-size:28px;margin-bottom:6px;opacity:.4}
+.upload-zone .uz-text{font-family:'Fragment Mono',monospace;font-size:12px;color:#999;letter-spacing:-.5px}
+.upload-zone .uz-sub{font-family:'Fragment Mono',monospace;font-size:10px;color:#555;margin-top:3px;letter-spacing:-.4px}
+.img-preview{position:relative;overflow:hidden;border:1px solid #353535;height:110px}
+.img-preview img{width:100%;height:100%;object-fit:cover;display:block}
+.img-preview .rm-btn{position:absolute;top:6px;right:6px;width:22px;height:22px;
+  background:rgba(0,0,0,.7);color:#fff;display:flex;align-items:center;justify-content:center;
+  font-size:12px;cursor:pointer}
+.img-preview .rm-btn:hover{background:rgba(220,50,50,.8)}
+
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="sidebar">
+    <div class="sb-inner">
+      <div class="sb-header">
+        <img class="helm-icon" src="https://www.figma.com/api/mcp/asset/f07d2f5d-1ad8-4d87-a18b-d3028782ba68" alt="">
+        <button class="btn-glass" onclick="randomize()">
+          <svg viewBox="0 0 16 16" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M13.5 2.5v4h-4"/><path d="M13.5 6.5A6 6 0 0 0 3.8 4.2"/>
+            <path d="M2.5 13.5v-4h4"/><path d="M2.5 9.5a6 6 0 0 0 9.7 1.8"/>
+          </svg>
+          Randomize
+        </button>
+      </div>
+      <div class="sb-body" id="sb-body"></div>
+      <div class="sb-footer">
+        <button class="btn-glass full" id="export-btn" onclick="exportPNG()">
+          <svg viewBox="0 0 16 16" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 2v9M4.5 7.5L8 11l3.5-3.5M2 14h12"/>
+          </svg>
+          Export PNG
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="main">
+    <div id="viewport">
+      <canvas id="main-canvas"></canvas>
+      <div id="tabs-bar"></div>
+      <div id="legend"></div>
+      <div class="canvas-hint" id="hint"></div>
+      <div id="point-popover"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ── Simplex Noise ─────────────────────────────────────────── */
+const GRAD2=[[1,1],[-1,1],[1,-1],[-1,-1],[1,0],[-1,0],[0,1],[0,-1]];
+const F2=.5*(Math.sqrt(3)-1),G2=(3-Math.sqrt(3))/6;
+function makeNoise(seed){
+  const p=new Uint8Array(512),s=new Uint8Array(256);
+  for(let i=0;i<256;i++)s[i]=i;
+  let r=seed;
+  for(let i=255;i>0;i--){r=(r*16807)%2147483647;const j=r%(i+1);[s[i],s[j]]=[s[j],s[i]]}
+  for(let i=0;i<512;i++)p[i]=s[i&255];
+  return(x,y)=>{
+    const s0=(x+y)*F2,i=Math.floor(x+s0),j=Math.floor(y+s0),t=(i+j)*G2;
+    const x0=x-(i-t),y0=y-(j-t),i1=x0>y0?1:0,j1=x0>y0?0:1;
+    const x1=x0-i1+G2,y1=y0-j1+G2,x2=x0-1+2*G2,y2=y0-1+2*G2;
+    const ii=i&255,jj=j&255;
+    let n0=0,n1=0,n2=0,t0=.5-x0*x0-y0*y0;
+    if(t0>0){t0*=t0;const g=p[ii+p[jj]]&7;n0=t0*t0*(GRAD2[g][0]*x0+GRAD2[g][1]*y0)}
+    let t1=.5-x1*x1-y1*y1;
+    if(t1>0){t1*=t1;const g=p[ii+i1+p[jj+j1]]&7;n1=t1*t1*(GRAD2[g][0]*x1+GRAD2[g][1]*y1)}
+    let t2=.5-x2*x2-y2*y2;
+    if(t2>0){t2*=t2;const g=p[ii+1+p[jj+1]]&7;n2=t2*t2*(GRAD2[g][0]*x2+GRAD2[g][1]*y2)}
+    return 70*(n0+n1+n2);
+  };
+}
+let noiseFn=makeNoise(42);
+
+/* ── Colormap ──────────────────────────────────────────────── */
+const CMAPS={};
+function addCmap(name,stops){
+  const lut=new Uint8Array(768);
+  for(let i=0;i<256;i++){
+    const t=i/255;let lo=0;
+    for(let j=1;j<stops.length;j++){if(stops[j][0]>=t){lo=j-1;break}if(j===stops.length-1)lo=j-1}
+    const a=stops[lo],b=stops[Math.min(lo+1,stops.length-1)];
+    const f=a[0]===b[0]?0:(t-a[0])/(b[0]-a[0]);
+    lut[i*3]=a[1]+(b[1]-a[1])*f;
+    lut[i*3+1]=a[2]+(b[2]-a[2])*f;
+    lut[i*3+2]=a[3]+(b[3]-a[3])*f;
+  }
+  CMAPS[name]=lut;
+}
+// Thermal: black → blue → cyan → green → yellow → orange → red → deep pink (smooth, no regression)
+addCmap('Thermal',[
+  [0,   0,  0,  0  ],
+  [.05, 0,  0,  15 ],
+  [.11, 0,  0,  70 ],
+  [.16, 0,  20, 120],
+  [.21, 0,  80, 130],
+  [.26, 0,  150,80 ],
+  [.31, 30, 185,10 ],
+  [.36, 120,205,0  ],
+  [.41, 210,215,0  ],
+  [.46, 255,175,0  ],
+  [.52, 255,120,0  ],
+  [.57, 255,65, 0  ],
+  [.62, 240,15, 0  ],
+  [.67, 210,0,  10 ],
+  [.72, 190,0,  45 ],
+  [.78, 195,0,  80 ],
+  [.83, 210,25, 115],
+  [.88, 225,65, 155],
+  [.93, 238,105,185],
+  [.97, 248,140,205],
+  [1,   255,175,225],
+]);
+const cmap='Thermal';
+function sampleCmap(name,t){
+  const l=CMAPS[name],i=Math.max(0,Math.min(255,Math.round(t*255)))*3;
+  return[l[i],l[i+1],l[i+2]];
+}
+
+/* ── Marching Squares ──────────────────────────────────────── */
+function extractContours(field,w,h,level){
+  const s=[];
+  for(let y=0;y<h-1;y++){for(let x=0;x<w-1;x++){
+    const tl=field[y*w+x],tr=field[y*w+x+1],br=field[(y+1)*w+x+1],bl=field[(y+1)*w+x];
+    const c=(tl>=level?8:0)|(tr>=level?4:0)|(br>=level?2:0)|(bl>=level?1:0);
+    if(!c||c===15)continue;
+    const lr=(v1,v2)=>v1===v2?.5:(level-v1)/(v2-v1);
+    const T=[x+lr(tl,tr),y],R=[x+1,y+lr(tr,br)],B=[x+lr(bl,br),y+1],L=[x,y+lr(tl,bl)];
+    const a=(p,q)=>s.push(p[0]/(w-1),p[1]/(h-1),q[0]/(w-1),q[1]/(h-1));
+    switch(c){case 1:case 14:a(L,B);break;case 2:case 13:a(B,R);break;
+    case 3:case 12:a(L,R);break;case 4:case 11:a(T,R);break;
+    case 5:a(L,T);a(B,R);break;case 6:case 9:a(T,B);break;
+    case 7:case 8:a(L,T);break;case 10:a(T,R);a(L,B);break}
+  }}
+  return s;
+}
+
+/* ── State ─────────────────────────────────────────────────── */
+let mode='generate';
+let sources=[{id:1,x:.45,y:.45,temp:.9,size:.35,angle:0,width:1}];
+let nextId=20;
+let selectedId=null;
+let dragging=null;
+let noiseAmt=0.25;
+let contourOn=false;
+let contourCount=10;
+let posterize=false;
+let posterLevels=24;
+let dirty=true;
+
+// Generate sub-mode: 'sources' | 'noise'
+let genSub='sources';
+
+// Gradient range per mode
+let genGradMin=0, genGradMax=0.82;
+let tvGradMin=0,  tvGradMax=0.82;
+
+// Thermal vision
+let tvImg=null,tvImgEl=null,tvInvert=false,tvContrast=1,tvBrightness=0;
+
+// Weather
+let wxDensity=30,wxSpread=1.0,wxVariation=0.5;
+let wxContourOn=false,wxContourCount=8;
+let wxGradMin=0,wxGradMax=0.7;
+let wxSources=[],wxNoiseFn=makeNoise(42);
+
+function generateWxSources(){
+  const seed=Math.floor(wxVariation*99999);
+  const rng=makeNoise(seed);
+  wxNoiseFn=makeNoise(seed+500);
+  wxSources=[];
+  for(let i=0;i<wxDensity;i++){
+    const t=i/wxDensity;
+    const rx=rng(t*50+1.3,7.7)*0.5+0.5;
+    const ry=rng(3.1,t*50+13.2)*0.5+0.5;
+    const cx=0.5+(rx-0.5)*wxSpread*1.6;
+    const cy=0.5+(ry-0.5)*wxSpread*1.6;
+    const heatRaw=Math.abs(rng(t*30+41,t*30+67));
+    const sizeRaw=Math.abs(rng(t*20+91,t*20+103));
+    const elongRaw=Math.abs(rng(t*25+301,t*25+307));
+    wxSources.push({x:cx,y:cy,temp:0.08+heatRaw*0.42,size:0.04+sizeRaw*0.14,
+      angle:rng(t*40+201,t*40+207)*80,elongation:1+elongRaw*3});
+  }
+}
+
+/* ── Canvas + render loop ──────────────────────────────────── */
+const canvas=document.getElementById('main-canvas');
+const ctx=canvas.getContext('2d',{willReadFrequently:true});
+const viewport=document.getElementById('viewport');
+const ASPECT=16/9;
+let cW=800,cH=600;
+
+// Offscreen canvas reused every frame — avoids GC pressure
+const offCanvas=document.createElement('canvas');
+const offCtx=offCanvas.getContext('2d');
+
+/* ── Compute heat field ────────────────────────────────────── */
+function computeField(w,h,skipPosterize){
+  const field=new Float32Array(w*h);
+  const DEG=Math.PI/180;
+  const aspect=w/h;
+  const refAspect=16/9; // reference aspect so noise looks same at any size
+  for(let py=0;py<h;py++){for(let px=0;px<w;px++){
+    let nx=px/w,ny=py/h;
+    // Use aspect-corrected coords for noise so pattern doesn't stretch
+    const anx=nx*aspect/refAspect;
+    if(noiseAmt>0){
+      const ns=4;
+      const nTotal=noiseFn(anx*ns,ny*ns)+noiseFn(anx*ns*2.3+5.1,ny*ns*2.3+8.7)*.5+noiseFn(anx*ns*4.7+13.2,ny*ns*4.7+21.5)*.25;
+      nx+=nTotal*noiseAmt*.18;
+      ny+=noiseFn(anx*ns+31,ny*ns+47)*noiseAmt*.18+noiseFn(anx*ns*2.3+41,ny*ns*2.3+57)*.5*noiseAmt*.18;
+    }
+    let T=0;
+    for(const s of sources){
+      const dx=(nx-s.x)*aspect/refAspect,dy=ny-s.y;
+      const a=s.angle*DEG,ca=Math.cos(a),sa=Math.sin(a);
+      const rx=dx*ca+dy*sa,ry=-dx*sa+dy*ca;
+      const sw=s.size*.35*s.width,sh=s.size*.35;
+      T+=s.temp*Math.exp(-(rx*rx/(2*sw*sw)+ry*ry/(2*sh*sh))*.8);
+    }
+    field[py*w+px]=Math.max(0,Math.min(1,T));
+  }}
+  if(posterize&&!skipPosterize){
+    const n=posterLevels;
+    for(let i=0;i<w*h;i++)field[i]=Math.round(field[i]*n)/n;
+  }
+  return field;
+}
+
+/* ── Thermal vision ────────────────────────────────────────── */
+function renderThermalVision(dw,dh){
+  if(!tvImgEl)return;
+  const tc=document.createElement('canvas');tc.width=dw;tc.height=dh;
+  const tctx=tc.getContext('2d');
+  const ia=tvImgEl.width/tvImgEl.height,ca=dw/dh;
+  let sx=0,sy=0,sw=tvImgEl.width,sh=tvImgEl.height;
+  if(ia>ca){const nH=tvImgEl.width/ca;sy=(tvImgEl.height-nH)/2;sh=nH}
+  else{const nW=tvImgEl.height*ca;sx=(tvImgEl.width-nW)/2;sw=nW}
+  tctx.drawImage(tvImgEl,sx,sy,sw,sh,0,0,dw,dh);
+  const pixels=tctx.getImageData(0,0,dw,dh);
+  const out=tctx.createImageData(dw,dh);
+  const lut=CMAPS[cmap];
+  for(let i=0;i<dw*dh;i++){
+    let lum=(pixels.data[i*4]*.299+pixels.data[i*4+1]*.587+pixels.data[i*4+2]*.114)/255;
+    lum=Math.max(0,Math.min(1,(lum-.5)*tvContrast+.5+tvBrightness));
+    if(tvInvert)lum=1-lum;
+    const mapped=tvGradMin+lum*(tvGradMax-tvGradMin);
+    const ci=Math.max(0,Math.min(255,Math.round(mapped*255)))*3;
+    out.data[i*4]=lut[ci];out.data[i*4+1]=lut[ci+1];out.data[i*4+2]=lut[ci+2];out.data[i*4+3]=255;
+  }
+  tctx.putImageData(out,0,0);
+  ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+  ctx.drawImage(tc,0,0,dw,dh);
+}
+
+/* ── Weather ───────────────────────────────────────────────── */
+function computeWeatherField(w,h){
+  const field=new Float32Array(w*h);
+  const DEG=Math.PI/180,ns=4;
+  const aspect=w/h,refAspect=16/9;
+  for(let py=0;py<h;py++){for(let px=0;px<w;px++){
+    let nx=px/w,ny=py/h;
+    const anx=nx*aspect/refAspect;
+    nx+=wxNoiseFn(anx*ns,ny*ns)*0.03;
+    ny+=wxNoiseFn(anx*ns*2.3+5.1,ny*ns*2.3+8.7)*.5*0.03;
+    let T=0;
+    for(const s of wxSources){
+      const dx=(nx-s.x)*aspect/refAspect,dy=ny-s.y;
+      const a=s.angle*DEG,ca=Math.cos(a),sa=Math.sin(a);
+      const rx=dx*ca+dy*sa,ry=-dx*sa+dy*ca;
+      const sx2=s.size*s.elongation*.5,sy2=s.size*.5;
+      T+=s.temp*Math.exp(-(rx*rx/(2*sx2*sx2)+ry*ry/(2*sy2*sy2))*.8);
+    }
+    field[py*w+px]=Math.max(0,Math.min(1,T));
+  }}
+  return field;
+}
+
+function renderWeather(dw,dh){
+  if(!wxSources.length)generateWxSources();
+  const sc=dragging?4:2;
+  const fw=Math.max(1,Math.round(dw/sc)),fh=Math.max(1,Math.round(dh/sc));
+  const field=computeWeatherField(fw,fh);
+  const lut=CMAPS[cmap];
+  offCanvas.width=fw;offCanvas.height=fh;
+  const img=offCtx.createImageData(fw,fh);
+  for(let i=0;i<fw*fh;i++){
+    const v=field[i];
+    if(v<=0.001){img.data[i*4]=0;img.data[i*4+1]=0;img.data[i*4+2]=0;img.data[i*4+3]=255}
+    else{
+      const mapped=wxGradMin+v*(wxGradMax-wxGradMin);
+      const ci=Math.max(0,Math.min(255,Math.round(mapped*255)))*3;
+      const alpha=Math.min(1,v*2.5);
+      img.data[i*4]=Math.round(lut[ci]*alpha);img.data[i*4+1]=Math.round(lut[ci+1]*alpha);
+      img.data[i*4+2]=Math.round(lut[ci+2]*alpha);img.data[i*4+3]=255;
+    }
+  }
+  offCtx.putImageData(img,0,0);
+  ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+  ctx.drawImage(offCanvas,0,0,fw,fh,0,0,dw,dh);
+  if(!dragging&&wxContourOn&&wxContourCount>0){
+    const levels=[];for(let i=1;i<=wxContourCount;i++)levels.push(i/(wxContourCount+1));
+    ctx.lineCap='round';ctx.lineJoin='round';
+    for(let li=0;li<levels.length;li++){
+      const lv=levels[li],segs=extractContours(field,fw,fh,lv);
+      ctx.strokeStyle=`rgba(0,0,0,${0.35+lv*0.25})`;ctx.lineWidth=1.2+lv*1.2;
+      ctx.beginPath();
+      for(let j=0;j<segs.length;j+=4){ctx.moveTo(segs[j]*dw,segs[j+1]*dh);ctx.lineTo(segs[j+2]*dw,segs[j+3]*dh)}
+      ctx.stroke();
+    }
+  }
+}
+
+/* ── Main render — optimized ───────────────────────────────── */
+function render(){
+  requestAnimationFrame(render);
+  if(!dirty)return;dirty=false;
+  const rect=viewport.getBoundingClientRect();
+  const dw=Math.floor(rect.width),dh=Math.floor(rect.height);
+  if(dw<10||dh<10)return;
+  if(canvas.width!==dw||canvas.height!==dh){canvas.width=dw;canvas.height=dh}
+  else ctx.clearRect(0,0,dw,dh);
+  cW=dw;cH=dh;
+
+  if(mode==='thermal'){renderThermalVision(dw,dh);return}
+
+  // Generate sub-modes
+  if(genSub==='noise'){renderWeather(dw,dh);return}
+
+  // Sources mode — render field at reduced resolution, scale up
+  const sc=dragging?4:2;
+  const fw=Math.max(1,Math.round(dw/sc)),fh=Math.max(1,Math.round(dh/sc));
+  const field=computeField(fw,fh);
+
+  offCanvas.width=fw;offCanvas.height=fh;
+  const img=offCtx.createImageData(fw,fh);
+  const lut=CMAPS[cmap];
+  for(let i=0;i<fw*fh;i++){
+    const mapped=genGradMin+field[i]*(genGradMax-genGradMin);
+    const ci=Math.max(0,Math.min(255,Math.round(mapped*255)))*3;
+    img.data[i*4]=lut[ci];img.data[i*4+1]=lut[ci+1];img.data[i*4+2]=lut[ci+2];img.data[i*4+3]=255;
+  }
+  offCtx.putImageData(img,0,0);
+  ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+  ctx.drawImage(offCanvas,0,0,fw,fh,0,0,dw,dh);
+
+  // Skip contours while dragging for performance
+  if(!dragging&&contourOn&&contourCount>0){
+    const cf=posterize?computeField(fw,fh,true):field;
+    const levels=[];for(let i=1;i<=contourCount;i++)levels.push(i/(contourCount+1));
+    ctx.lineCap='round';ctx.lineJoin='round';
+    for(let li=0;li<levels.length;li++){
+      const lv=levels[li],segs=extractContours(cf,fw,fh,lv);
+      ctx.strokeStyle=`rgba(0,0,0,${0.35+lv*0.25})`;ctx.lineWidth=1.2+lv*1.2;
+      ctx.beginPath();
+      for(let i=0;i<segs.length;i+=4){ctx.moveTo(segs[i]*dw,segs[i+1]*dh);ctx.lineTo(segs[i+2]*dw,segs[i+3]*dh)}
+      ctx.stroke();
+    }
+  }
+
+  // Source handles
+  for(const s of sources){
+    const px=s.x*dw,py=s.y*dh,sel=s.id===selectedId;
+    if(sel){ctx.beginPath();ctx.arc(px,py,18,0,Math.PI*2);ctx.fillStyle='rgba(209,0,12,.15)';ctx.fill()}
+    ctx.beginPath();ctx.arc(px,py,sel?10:7,0,Math.PI*2);
+    const[cr,cg,cb]=sampleCmap(cmap,s.temp);
+    ctx.fillStyle=`rgb(${cr},${cg},${cb})`;ctx.fill();
+    ctx.strokeStyle=sel?'#fff':'rgba(255,255,255,.6)';ctx.lineWidth=sel?2.5:1.5;ctx.stroke();
+    ctx.beginPath();ctx.arc(px,py,2.5,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();
+  }
+}
+
+/* ── Canvas interaction ────────────────────────────────────── */
+function canvasPos(e){
+  const r=canvas.getBoundingClientRect();
+  return{x:(e.clientX-r.left)/r.width,y:(e.clientY-r.top)/r.height};
+}
+canvas.addEventListener('mousedown',e=>{
+  if(mode!=='generate'||genSub!=='sources')return;
+  const p=canvasPos(e);
+  if(e.button===2){
+    let hit=null,md=.04;
+    for(const s of sources){const d=Math.hypot(s.x-p.x,s.y-p.y);if(d<md){md=d;hit=s}}
+    if(hit&&sources.length>1){sources=sources.filter(s=>s.id!==hit.id);if(selectedId===hit.id){selectedId=null;hidePopover()}dirty=true;buildSidebar()}
+    return;
+  }
+  let hit=null,md=.04;
+  for(const s of sources){const d=Math.hypot(s.x-p.x,s.y-p.y);if(d<md){md=d;hit=s}}
+  if(hit){selectedId=hit.id;dragging={id:hit.id,ox:hit.x,oy:hit.y,sx:p.x,sy:p.y};dirty=true;showPopover(hit);buildSidebar();
+    document.addEventListener('mousemove',onDragMove);document.addEventListener('mouseup',onDragUp);}
+  else{selectedId=null;hidePopover();dirty=true;buildSidebar()}
+});
+// Global drag handlers — attached on dragstart, removed on mouseup
+// This keeps dragging alive even when cursor moves outside the canvas
+function onDragMove(e){
+  if(!dragging)return;
+  const p=canvasPos(e);
+  const s=sources.find(s=>s.id===dragging.id);
+  if(s){s.x=Math.max(0,Math.min(1,dragging.ox+(p.x-dragging.sx)));s.y=Math.max(0,Math.min(1,dragging.oy+(p.y-dragging.sy)));dirty=true;showPopover(s)}
+}
+function onDragUp(){
+  if(dragging){dragging=null;dirty=true}
+  document.removeEventListener('mousemove',onDragMove);
+  document.removeEventListener('mouseup',onDragUp);
+}
+canvas.addEventListener('dblclick',e=>{
+  if(mode!=='generate'||genSub!=='sources')return;
+  const p=canvasPos(e);
+  const s={id:++nextId,x:p.x,y:p.y,temp:.6+Math.random()*.3,size:.15+Math.random()*.15,angle:0,width:1};
+  sources.push(s);selectedId=s.id;dirty=true;showPopover(s);buildSidebar();
+});
+canvas.addEventListener('contextmenu',e=>e.preventDefault());
+
+/* ── Popover ───────────────────────────────────────────────── */
+function ppSlider(pid,min,max,step,val,sid,key){
+  const range=max-min;
+  const p=Math.round((val-min)/range*100);
+  // wrap min in parens so negative values like -90 don't produce --90 (invalid JS)
+  const upd=`updSrc(${sid},'${key}',+this.value);`
+           +`var _q=Math.round((+this.value-(${min}))/${range}*100);`
+           +`document.getElementById('${pid}f').style.width=_q+'%';`
+           +`document.getElementById('${pid}d').style.left=_q+'%'`;
+  return`<div class="range-wrap">
+    <div class="range-fill" id="${pid}f" style="width:${p}%"></div>
+    <div class="range-dot" id="${pid}d" style="left:${p}%"></div>
+    <input class="range-native" type="range" min="${min}" max="${max}" step="${step}" value="${val}" oninput="${upd}">
+  </div>`;
+}
+function showPopover(s){
+  const pop=document.getElementById('point-popover');
+  const px=s.x*cW,py=s.y*cH;
+  let left=px+20,top=py-60;
+  if(left+210>cW)left=px-220;if(top<10)top=10;
+  pop.style.display='block';pop.style.left=left+'px';pop.style.top=top+'px';
+  pop.innerHTML=`
+    <div class="pp-title">Heat Source
+      <div class="pp-del" onclick="delSource(${s.id})">&#10005;</div>
+    </div>
+    <div class="pp-row">
+      <span class="pp-lbl">Heat</span>
+      ${ppSlider('pph',0,1.5,.01,s.temp,s.id,'temp')}
+    </div>
+    <div class="pp-row">
+      <span class="pp-lbl">Size</span>
+      ${ppSlider('pps',.05,.6,.005,s.size,s.id,'size')}
+    </div>
+    <div class="pp-row">
+      <span class="pp-lbl">Width</span>
+      ${ppSlider('ppw',.2,4,.05,s.width,s.id,'width')}
+    </div>
+    <div class="pp-row">
+      <span class="pp-lbl">Angle</span>
+      ${ppSlider('ppa',-90,90,1,s.angle,s.id,'angle')}
+    </div>`;
+}
+function hidePopover(){document.getElementById('point-popover').style.display='none'}
+window.updSrc=function(id,k,v){const s=sources.find(s=>s.id===id);if(s){s[k]=v;dirty=true}};
+window.delSource=function(id){
+  if(sources.length<=1)return;
+  sources=sources.filter(s=>s.id!==id);
+  if(selectedId===id){selectedId=null;hidePopover()}
+  dirty=true;buildSidebar();
+};
+
+/* ── Mode tabs ─────────────────────────────────────────────── */
+const MODES=[
+  {key:'generate',label:'Generate'},
+  {key:'thermal',label:'Thermal Vision'}
+];
+function buildTabs(){
+  document.getElementById('tabs-bar').innerHTML=MODES.map(m=>
+    `<button class="tab-btn${mode===m.key?' active':''}" onclick="setMode('${m.key}')">${m.label}</button>`
+  ).join('');
+}
+window.setMode=function(m){
+  mode=m;dirty=true;selectedId=null;hidePopover();
+  buildTabs();buildSidebar();updateHint();updateLegend();
+};
+
+function updateHint(){
+  const el=document.getElementById('hint');
+  if(mode==='generate'){
+    if(genSub==='sources') el.textContent='Double-click to add · Drag to move · Right-click to remove';
+    else el.textContent='Noise-based thermal map · Adjust in the sidebar';
+  } else if(mode==='thermal') el.textContent=tvImgEl?'Thermal vision applied':'Upload an image to begin';
+  else el.textContent='';
+}
+
+/* ── Legend (interactive gradient range selector) ──────────── */
+function updateLegend(){
+  const el=document.getElementById('legend');
+  el.innerHTML='';
+
+  // all modes get interactive handles
+  const interactive=true;
+
+  const topL=document.createElement('div');topL.className='lbl';topL.textContent='HOT';
+  const botL=document.createElement('div');botL.className='lbl';botL.textContent='COLD';
+
+  const barH=330;
+  const c=document.createElement('canvas');c.width=18;c.height=barH;
+  const lc=c.getContext('2d');
+  const lut=CMAPS[cmap];
+  for(let i=0;i<barH;i++){
+    const t=1-i/(barH-1);
+    const ci=Math.max(0,Math.min(255,Math.round(t*255)))*3;
+    lc.fillStyle=`rgb(${lut[ci]},${lut[ci+1]},${lut[ci+2]})`;
+    lc.fillRect(0,i,18,1);
+  }
+
+  const bar=document.createElement('div');
+  bar.className='legend-bar';
+  bar.appendChild(c);
+
+  if(interactive){
+    const isNoise=()=>mode==='generate'&&genSub==='noise';
+    const getMin=()=>isNoise()?wxGradMin:mode==='thermal'?tvGradMin:genGradMin;
+    const getMax=()=>isNoise()?wxGradMax:mode==='thermal'?tvGradMax:genGradMax;
+    const setMin=v=>{if(isNoise())wxGradMin=v;else if(mode==='thermal')tvGradMin=v;else genGradMin=v;dirty=true};
+    const setMax=v=>{if(isNoise())wxGradMax=v;else if(mode==='thermal')tvGradMax=v;else genGradMax=v;dirty=true};
+
+    const dimTop=document.createElement('div');dimTop.className='legend-dim';dimTop.style.top='0';
+    const dimBot=document.createElement('div');dimBot.className='legend-dim';dimBot.style.bottom='0';
+    const hMax=document.createElement('div');hMax.className='legend-handle';
+    const hMin=document.createElement('div');hMin.className='legend-handle';
+    bar.appendChild(dimTop);bar.appendChild(dimBot);bar.appendChild(hMax);bar.appendChild(hMin);
+
+    function updPos(){
+      const maxY=(1-getMax())*barH;
+      const minY=(1-getMin())*barH;
+      hMax.style.top=maxY+'px';
+      hMin.style.top=minY+'px';
+      dimTop.style.height=maxY+'px';
+      dimBot.style.height=(barH-minY)+'px';
+    }
+    updPos();
+
+    let dragH=null;
+    function onDown(e,h){e.preventDefault();dragH=h;document.addEventListener('mousemove',onMove);document.addEventListener('mouseup',onUp)}
+    function onMove(e){
+      if(!dragH)return;
+      const rect=bar.getBoundingClientRect();
+      const t=Math.max(0,Math.min(1,1-(e.clientY-rect.top)/barH));
+      if(dragH==='max')setMax(Math.max(t,getMin()+.04));
+      else setMin(Math.min(t,getMax()-.04));
+      updPos();
+    }
+    function onUp(){dragH=null;document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp)}
+    hMax.addEventListener('mousedown',e=>onDown(e,'max'));
+    hMin.addEventListener('mousedown',e=>onDown(e,'min'));
+  }
+
+  el.appendChild(topL);el.appendChild(bar);el.appendChild(botL);
+}
+
+/* ── Sidebar ───────────────────────────────────────────────── */
+function pct(val,min,max){return Math.round((val-min)/(max-min)*100)}
+
+function rangeHtml(id,min,max,step,val,label,fmt){
+  const p=pct(val,min,max);
+  return`<div class="slider-row">
+    <span class="slider-lbl">${label}</span>
+    <div class="range-wrap">
+      <div class="range-fill" id="${id}-fill" style="width:${p}%"></div>
+      <div class="range-dot" id="${id}-dot" style="left:${p}%"></div>
+      <input class="range-native" type="range" min="${min}" max="${max}" step="${step}" value="${val}"
+        oninput="onRange('${id}',this,${min},${max})">
+    </div>
+    <span class="slider-val" id="${id}-val">${fmt(val)}</span>
+  </div>`;
+}
+
+function toggleHtml(state,handler,label){
+  return`<div class="setting-row">
+    <span class="setting-name">${label}</span>
+    <div class="toggle-wrap${state?' on':''}" onclick="${handler}">
+      <div class="toggle-track${state?' on':''}">
+        <div class="toggle-thumb${state?' on':' off'}"></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+
+window.onRange=function(id,input,min,max){
+  const p=pct(+input.value,min,max);
+  const fill=document.getElementById(id+'-fill');
+  const dot=document.getElementById(id+'-dot');
+  const valEl=document.getElementById(id+'-val');
+  if(fill)fill.style.width=p+'%';
+  if(dot)dot.style.left=p+'%';
+  switch(id){
+    case 'noise':      noiseAmt=+input.value;if(valEl)valEl.textContent=noiseAmt.toFixed(2);dirty=true;break;
+    case 'contour-n':  contourCount=+input.value;if(valEl)valEl.textContent=contourCount;dirty=true;break;
+    case 'poster-n':   posterLevels=+input.value;if(valEl)valEl.textContent=posterLevels;dirty=true;break;
+    case 'tv-contrast':tvContrast=+input.value;if(valEl)valEl.textContent=tvContrast.toFixed(1)+'x';dirty=true;break;
+    case 'tv-bright':  tvBrightness=+input.value;if(valEl)valEl.textContent=(tvBrightness>=0?'+':'')+tvBrightness.toFixed(2);dirty=true;break;
+    case 'wx-density': wxDensity=+input.value;if(valEl)valEl.textContent=wxDensity;generateWxSources();dirty=true;break;
+    case 'wx-spread':  wxSpread=+input.value;if(valEl)valEl.textContent=Math.round(wxSpread*100)+'%';generateWxSources();dirty=true;break;
+    case 'wx-var':     wxVariation=+input.value;generateWxSources();dirty=true;break;
+    case 'wx-ccount':  wxContourCount=+input.value;if(valEl)valEl.textContent=wxContourCount;dirty=true;break;
+  }
+};
+
+window.setGenSub=function(s){
+  genSub=s;dirty=true;selectedId=null;hidePopover();
+  buildSidebar();updateHint();updateLegend();
+};
+
+
+function buildSidebar(){
+  const el=document.getElementById('sb-body');
+  let html='';
+
+  if(mode==='generate'){
+    html=`<div>
+      <div class="sub-toggle">
+        <button class="${genSub==='sources'?'active':''}" onclick="setGenSub('sources')">Sources</button>
+        <button class="${genSub==='noise'?'active':''}" onclick="setGenSub('noise')">Noise</button>
+      </div>
+    </div>`;
+
+    if(genSub==='sources'){
+      html+=`
+      <div>
+        <div class="section-lbl">Settings</div>
+        <div class="section-items">
+          ${toggleHtml(posterize,"posterize=!posterize;dirty=true;buildSidebar()",'Color Bands')}
+          ${posterize?rangeHtml('poster-n',8,48,1,posterLevels,'Bands',v=>Math.round(v)):''}
+          ${toggleHtml(contourOn,"contourOn=!contourOn;dirty=true;buildSidebar()",'Contour Lines')}
+          ${contourOn?rangeHtml('contour-n',3,25,1,contourCount,'Lines',v=>Math.round(v)):''}
+          ${rangeHtml('noise',0,1,.01,noiseAmt,'Distortion',v=>(+v).toFixed(2))}
+        </div>
+      </div>
+      <div>
+        <div class="section-lbl">Sources (${sources.length})</div>
+        <div class="section-items" style="margin-bottom:8px">
+          ${sources.map((s,i)=>{
+            const[r,g,b]=sampleCmap(cmap,s.temp);
+            return`<div class="source-item${s.id===selectedId?' selected':''}" onclick="selectSrc(${s.id})">
+              <div class="source-dot" style="background:rgb(${r},${g},${b})"></div>
+              <span class="source-name">Source ${i+1}</span>
+              <span class="source-val">${s.temp.toFixed(1)}</span>
+            </div>`;
+          }).join('')}
+        </div>
+        <button class="btn-glass full" onclick="addSrc()">
+          <svg viewBox="0 0 16 16" fill="none" stroke-width="2" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+          Add Source
+        </button>
+      </div>`;
+    } else {
+      html+=`
+      <div>
+        <div class="section-lbl">Pattern</div>
+        <div class="section-items">
+          ${rangeHtml('wx-density',5,60,1,wxDensity,'Density',v=>Math.round(v))}
+          ${rangeHtml('wx-spread',.1,1,.01,wxSpread,'Spread',v=>Math.round(+v*100)+'%')}
+          ${rangeHtml('wx-var',0,1,.005,wxVariation,'Weather',()=>'')}
+        </div>
+      </div>
+      <div>
+        <div class="section-lbl">Contours</div>
+        <div class="section-items">
+          ${toggleHtml(wxContourOn,"wxContourOn=!wxContourOn;dirty=true;buildSidebar()",'Contour Lines')}
+          ${wxContourOn?rangeHtml('wx-ccount',3,20,1,wxContourCount,'Lines',v=>Math.round(v)):''}
+        </div>
+      </div>`;
+    }
+
+  } else if(mode==='thermal'){
+    html=`
+    <div>
+      <div class="section-lbl">Image</div>
+      ${!tvImgEl?`
+        <div class="upload-zone">
+          <input type="file" accept="image/*" onchange="uploadTV(this)">
+          <div class="uz-icon">&#128247;</div>
+          <div class="uz-text">Drop image or click to upload</div>
+          <div class="uz-sub">JPG · PNG · WebP</div>
+        </div>`:`
+        <div class="img-preview">
+          <img src="${tvImg}">
+          <div class="rm-btn" onclick="clearTV()">&#10005;</div>
+        </div>`}
+    </div>
+    <div>
+      <div class="section-lbl">Adjustments</div>
+      <div class="section-items">
+        ${toggleHtml(tvInvert,"tvInvert=!tvInvert;dirty=true;buildSidebar()",'Invert')}
+        ${rangeHtml('tv-contrast',.2,3,.05,tvContrast,'Contrast',v=>(+v).toFixed(1)+'x')}
+        ${rangeHtml('tv-bright',-.5,.5,.01,tvBrightness,'Brightness',v=>(+v>=0?'+':'')+((+v).toFixed(2)))}
+      </div>
+    </div>`;
+
+  }
+
+  el.innerHTML=html;
+}
+
+/* ── Source actions ────────────────────────────────────────── */
+window.selectSrc=function(id){
+  selectedId=selectedId===id?null:id;
+  const s=sources.find(s=>s.id===id);
+  if(s)showPopover(s);else hidePopover();
+  dirty=true;buildSidebar();
+};
+window.addSrc=function(){
+  const s={id:++nextId,x:.2+Math.random()*.6,y:.2+Math.random()*.6,
+    temp:.4+Math.random()*.5,size:.1+Math.random()*.15,angle:(Math.random()-.5)*30,width:1};
+  sources.push(s);selectedId=s.id;dirty=true;showPopover(s);buildSidebar();
+};
+window.randomize=function(){
+  if(mode==='generate'&&genSub==='noise'){
+    wxVariation=Math.random();
+    wxDensity=10+Math.floor(Math.random()*50);
+    wxSpread=0.3+Math.random()*0.7;
+    generateWxSources();
+    dirty=true;buildSidebar();
+  } else if(mode==='thermal'){
+    tvContrast=0.6+Math.random()*2.2;
+    tvBrightness=(Math.random()-.5)*.4;
+    tvInvert=Math.random()>.75;
+    dirty=true;buildSidebar();
+  } else {
+    const n=3+Math.floor(Math.random()*7);sources=[];
+    for(let i=0;i<n;i++)
+      sources.push({id:++nextId,x:.1+Math.random()*.8,y:.1+Math.random()*.8,
+        temp:.2+Math.random()*.8,size:.08+Math.random()*.3,angle:(Math.random()-.5)*40,width:.5+Math.random()*1.5});
+    noiseAmt=.1+Math.random()*.4;
+    noiseFn=makeNoise(Math.floor(Math.random()*99999));
+    posterLevels=12+Math.floor(Math.random()*24);
+    selectedId=null;hidePopover();dirty=true;buildSidebar();updateLegend();
+  }
+};
+
+/* ── Thermal upload ────────────────────────────────────────── */
+window.uploadTV=function(input){
+  const file=input.files?.[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const img=new Image();
+    img.onload=()=>{tvImg=e.target.result;tvImgEl=img;dirty=true;buildSidebar();updateHint()};
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+};
+window.clearTV=function(){tvImg=null;tvImgEl=null;dirty=true;buildSidebar();updateHint()};
+
+const EXPORT_ICON=`<svg viewBox="0 0 16 16" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v9M4.5 7.5L8 11l3.5-3.5M2 14h12"/></svg>`;
+const SPIN_ICON=`<svg class="spin" viewBox="0 0 16 16" fill="none" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="6" stroke="rgba(255,255,255,.2)"/><path d="M8 2a6 6 0 0 1 6 6" stroke="currentColor"/></svg>`;
+
+/* ── Export ────────────────────────────────────────────────── */
+window.exportPNG=function(){
+  const btn=document.getElementById('export-btn');
+  if(btn.dataset.busy)return;
+  btn.dataset.busy='1';
+  btn.innerHTML=SPIN_ICON+' Exporting...';
+  // defer heavy work one frame so the DOM update renders first
+  requestAnimationFrame(()=>setTimeout(()=>{
+  const w=3840,h=2160;
+  const ec=document.createElement('canvas');ec.width=w;ec.height=h;
+  const ectx=ec.getContext('2d');
+  const lut=CMAPS[cmap];
+  if(mode==='thermal'&&tvImgEl){
+    const tc=document.createElement('canvas');tc.width=w;tc.height=h;
+    const tctx=tc.getContext('2d');
+    const ia=tvImgEl.width/tvImgEl.height,ca=w/h;
+    let sx=0,sy=0,sw=tvImgEl.width,sh=tvImgEl.height;
+    if(ia>ca){const nH=tvImgEl.width/ca;sy=(tvImgEl.height-nH)/2;sh=nH}
+    else{const nW=tvImgEl.height*ca;sx=(tvImgEl.width-nW)/2;sw=nW}
+    tctx.drawImage(tvImgEl,sx,sy,sw,sh,0,0,w,h);
+    const px=tctx.getImageData(0,0,w,h);
+    const out=ectx.createImageData(w,h);
+    for(let i=0;i<w*h;i++){
+      let l=(px.data[i*4]*.299+px.data[i*4+1]*.587+px.data[i*4+2]*.114)/255;
+      l=Math.max(0,Math.min(1,(l-.5)*tvContrast+.5+tvBrightness));
+      if(tvInvert)l=1-l;
+      const mapped=tvGradMin+l*(tvGradMax-tvGradMin);
+      const ci=Math.max(0,Math.min(255,Math.round(mapped*255)))*3;
+      out.data[i*4]=lut[ci];out.data[i*4+1]=lut[ci+1];out.data[i*4+2]=lut[ci+2];out.data[i*4+3]=255;
+    }
+    ectx.putImageData(out,0,0);
+  } else if(genSub==='noise'){
+    const field=computeWeatherField(w,h);
+    const img=ectx.createImageData(w,h);
+    for(let i=0;i<w*h;i++){
+      const v=field[i];
+      if(v<=0.001){img.data[i*4]=0;img.data[i*4+1]=0;img.data[i*4+2]=0;img.data[i*4+3]=255}
+      else{
+        const mapped=wxGradMin+v*(wxGradMax-wxGradMin);
+        const ci=Math.max(0,Math.min(255,Math.round(mapped*255)))*3;
+        const alpha=Math.min(1,v*2.5);
+        img.data[i*4]=Math.round(lut[ci]*alpha);img.data[i*4+1]=Math.round(lut[ci+1]*alpha);
+        img.data[i*4+2]=Math.round(lut[ci+2]*alpha);img.data[i*4+3]=255;
+      }
+    }
+    ectx.putImageData(img,0,0);
+  } else {
+    const field=computeField(w,h);
+    const img=ectx.createImageData(w,h);
+    for(let i=0;i<w*h;i++){
+      const mapped=genGradMin+field[i]*(genGradMax-genGradMin);
+      const ci=Math.max(0,Math.min(255,Math.round(mapped*255)))*3;
+      img.data[i*4]=lut[ci];img.data[i*4+1]=lut[ci+1];img.data[i*4+2]=lut[ci+2];img.data[i*4+3]=255;
+    }
+    ectx.putImageData(img,0,0);
+    if(contourOn&&contourCount>0){
+      const cf=posterize?computeField(w,h,true):field;
+      const levels=[];for(let i=1;i<=contourCount;i++)levels.push(i/(contourCount+1));
+      ectx.lineCap='round';ectx.lineJoin='round';
+      for(let li=0;li<levels.length;li++){
+        const lv=levels[li],segs=extractContours(cf,w,h,lv);
+        ectx.strokeStyle=`rgba(0,0,0,${0.35+lv*0.25})`;ectx.lineWidth=(1.2+lv*1.2)*(w/cW);
+        ectx.beginPath();
+        for(let j=0;j<segs.length;j+=4){ectx.moveTo(segs[j]*w,segs[j+1]*h);ectx.lineTo(segs[j+2]*w,segs[j+3]*h)}
+        ectx.stroke();
+      }
+    }
+  }
+  ec.toBlob(b=>{
+    const a=document.createElement('a');a.href=URL.createObjectURL(b);
+    a.download=`heatmap-${Date.now()}.png`;a.click();URL.revokeObjectURL(a.href);
+    btn.innerHTML=EXPORT_ICON+' Export PNG';
+    delete btn.dataset.busy;
+  },'image/png');
+  },0));
+};
+
+/* ── Init ──────────────────────────────────────────────────── */
+window.addEventListener('resize',()=>{dirty=true});
+generateWxSources();
+buildTabs();buildSidebar();updateLegend();updateHint();
+requestAnimationFrame(render);
+</script>
+</body>
+</html>
